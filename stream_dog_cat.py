@@ -4,8 +4,10 @@ import torchvision.transforms as transforms
 from PIL import Image
 import torchvision.models as models
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = torch.load('resnet18_full_model.pth', map_location=device)
-model.eval()
+model1 = models.inception_v3(pretrained=True).to(device)
+model1.eval()
+model2 = torch.load('resnet18_full_model.pth', map_location=device)
+model2.eval()
 
 def main():
     # Заголовок приложения
@@ -29,9 +31,42 @@ def show_homepage():
     # Здесь вы можете добавить любой контент для главной страницы
     # Добавляем картинку
     st.image("blood.png", use_column_width=True)
+
+##1
+with open("imagenet1000_clsidx_to_labels.txt") as f:
+    class_labels = [line.strip() for line in f.readlines()]
+
+def predict_inception(image):
+    transform = transforms.Compose([
+        transforms.Resize(299),  # Размер входного изображения для модели Inception
+        transforms.ToTensor(),
+        transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225]
+        )
+    ])
+    image = transform(image).unsqueeze(0).to(device)
+    with torch.no_grad():
+        output = model1(image)
+        _, predicted_idx = torch.max(output, 1)
+    predicted_label = class_labels[predicted_idx.item()]
+    return predicted_idx.item(), predicted_label
+###1
+    
 def show_page1():
     st.header("Классификация ImageNet")
     # Здесь вы можете добавить любой контент для страницы 1
+    uploaded_file = st.file_uploader("Загрузите картинку", type=["jpg", "jpeg", "png"])
+    if uploaded_file is not None:
+        image = Image.open(uploaded_file)
+        st.image(image, caption='Uploaded Image.', use_column_width=True)
+
+        # Классификация изображения
+        predicted_idx, predicted_label = predict_inception(image)
+
+        st.write(f"Прогнозируемый класс: {predicted_label} (Индекс: {predicted_idx})")
+
+
 def predict(image):
     transform = transforms.Compose([
         transforms.Resize(256),
@@ -41,7 +76,7 @@ def predict(image):
     ])
     image = transform(image).unsqueeze(0).to(device)
     with torch.no_grad():
-        output = model(image)
+        output = model2(image)
         predicted = (torch.sigmoid(output) > 0.5).float().item()
     return "Псина обнаружена" if predicted else "Это котик!"
 
